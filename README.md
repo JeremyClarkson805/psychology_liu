@@ -14,9 +14,8 @@
 
 ### 根目录文件
 - `问卷1.md` 至 `问卷5.md`: 原始 Markdown 格式问卷（CTQ, ERQ, BRIEF, NSSI 等）。
-- `test_countpoint.py`: **评分逻辑校对脚本**。用于离线测试和验证量表计分算法的准确性。
-- `debug_data.py`: **数据异常排查工具**。用于检查数据库中答题记录的完整性。
 - `runner.lock`: 运行锁，防止多个采集实例冲突。
+- `.env.example`: 数据库配置的demo
 
 ### `src/` 核心代码
 - **`persona_runner.py`**: **项目核心入口**。驱动 LLM 模拟人格并完成所有问卷作答。
