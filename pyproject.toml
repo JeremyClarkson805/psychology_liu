@@ -1,0 +1,20 @@
+[project]
+name = "psychology-liu"
+version = "0.1.0"
+description = "自伤行为风险评估问卷相似度分析系统"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "openai>=1.0.0",
+    "pydantic>=2.0.0",
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "pyyaml>=6.0",
+    "psycopg2-binary>=2.9.11",
+    "semopy>=2.3.11",
+    "pingouin>=0.6.0",
+    "matplotlib>=3.8.0",
+    "seaborn>=0.13.0",
+    "pandas-stubs==3.0.0.260204",
+    "openpyxl>=3.1.5",
+]
