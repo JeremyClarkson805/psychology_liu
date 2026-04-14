@@ -1,0 +1,249 @@
+import psycopg2
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib
+import re
+
+# ==========================================
+# 0. 中文字体设置
+# ==========================================
+matplotlib.rcParams['font.family'] = ['Microsoft YaHei']
+matplotlib.rcParams['axes.unicode_minus'] = False
+
+# ==========================================
+# 1. 数据库配置
+# ==========================================
+DB_CONFIG = {
+    "dbname": "postgres",
+    "user": "postgres",
+    "password": "REMOVED_PASSWORD",
+    "host": "localhost",
+    "port": "5432"
+}
+
+# ==========================================
+# 2. 工具函数
+# ==========================================
+def get_numeric_value(text, mapping):
+    if pd.isna(text) or not str(text).strip():
+        return np.nan
+    text = str(text).strip()
+    if text in mapping:
+        return mapping[text]
+    num_match = re.search(r'(\d+)', text)
+    if num_match:
+        val = int(num_match.group(1))
+        if val in mapping.values():
+            return val
+    for key, val in mapping.items():
+        if key in text:
+            return val
+    return np.nan
+
+
+# ==========================================
+# 3. CTQ 计分
+# ==========================================
+CTQ_MAPPING = {
+    "从没": 1, "从不": 1, "没有": 1,
+    "偶尔": 2,
+    "有时": 3,
+    "经常": 4,
+    "总是": 5
+}
+
+# CTQ 各维度切割分（标准临床切割分）
+CTQ_CUTOFFS = {
+    "情感虐待": 9,
+    "躯体虐待": 8,
+    "性虐待":   6,
+    "情感忽略": 10,
+    "躯体忽视": 8,
+}
+
+def score_ctq_one_run(answers_dict):
+    """
+    answers_dict: {question_num(str): answer_content(str)}
+    返回各维度得分，无效问卷返回 None
+    """
+    q = {str(k): get_numeric_value(v, CTQ_MAPPING) for k, v in answers_dict.items()}
+
+    def get_v(n):
+        return q.get(str(n), np.nan)
+
+    def rev(n):
+        v = get_v(n)
+        return 6 - v if not np.isnan(v) else np.nan
+
+    def dim_sum(fwd, rvs=[]):
+        vals = [get_v(i) for i in fwd] + [rev(i) for i in rvs]
+        valid = [v for v in vals if not np.isnan(v)]
+        return sum(valid) if valid else np.nan
+
+    # 效度检查
+    if get_v(10) == 1 or get_v(16) in [4, 5] or get_v(22) in [4, 5]:
+        return None  # 无效问卷
+
+    ea = dim_sum([3, 8, 14, 18, 25])           # 情感虐待
+    pa = dim_sum([9, 11, 12, 15, 17])           # 躯体虐待
+    sa = dim_sum([20, 21, 23, 24, 27])          # 性虐待
+    en = dim_sum([], [5, 7, 13, 19, 28])        # 情感忽略（全反向）
+    pn = dim_sum([1, 4, 6], [2, 26])            # 躯体忽视
+
+    return {
+        "情感虐待": ea,
+        "躯体虐待": pa,
+        "性虐待":   sa,
+        "情感忽略": en,
+        "躯体忽视": pn,
+    }
+
+
+# ==========================================
+# 4. 从数据库获取数据并计分
+# ==========================================
+def get_ctq_scores():
+    conn = psycopg2.connect(**DB_CONFIG)
+    df = pd.read_sql("""
+        SELECT r.model_name, r.run_id, a.question_num, a.answer_content
+        FROM questionnaire_answers a
+        JOIN ai_persona_runs r ON a.run_id = r.run_id
+        WHERE a.questionnaire_name ILIKE '%CTQ%'
+        ORDER BY r.model_name, r.run_id, a.question_num
+    """, conn)
+    conn.close()
+
+    records = []
+    for (model, rid), grp in df.groupby(['model_name', 'run_id']):
+        ans_dict = dict(zip(grp['question_num'].astype(str), grp['answer_content']))
+        result = score_ctq_one_run(ans_dict)
+        if result is None:
+            print(f"  ⚠️  {model} / run_id={rid} 未通过测谎，已排除")
+            continue
+        row = {"model_name": model, "run_id": rid}
+        row.update(result)
+        records.append(row)
+
+    return pd.DataFrame(records)
+
+
+# ==========================================
+# 5. 聚合：每个模型的各维度均值 + 标准差
+# ==========================================
+def aggregate(df_scores):
+    dims = ["情感虐待", "躯体虐待", "性虐待", "情感忽略", "躯体忽视"]
+    result = []
+    for model, grp in df_scores.groupby('model_name'):
+        row = {"model_name": model}
+        for d in dims:
+            row[f"{d}_mean"] = grp[d].mean()
+            row[f"{d}_std"]  = grp[d].std(ddof=1)
+            row[f"{d}_n"]    = grp[d].count()
+        result.append(row)
+    return pd.DataFrame(result)
+
+
+# ==========================================
+# 6. 画图：每个模型一张子图
+# ==========================================
+def plot_ctq(df_agg):
+    dims     = ["情感虐待", "躯体虐待", "性虐待", "情感忽略", "躯体忽视"]
+    cutoffs  = [CTQ_CUTOFFS[d] for d in dims]
+    colors   = ["#E88080", "#80A8E8", "#80D8A0", "#F0C070", "#C0A0E8"]
+
+    models   = df_agg['model_name'].tolist()
+    n_models = len(models)
+
+    # 每行3列
+    ncols = 3
+    nrows = int(np.ceil(n_models / ncols))
+    fig, axes = plt.subplots(nrows, ncols,
+                             figsize=(18, 7 * nrows),
+                             constrained_layout=True)
+    axes = np.array(axes).flatten()
+
+    x = np.arange(len(dims))
+    bar_w = 0.55
+
+    for idx, row in df_agg.iterrows():
+        ax = axes[idx]
+        means = [row[f"{d}_mean"] for d in dims]
+        stds  = [row[f"{d}_std"]  for d in dims]
+
+        bars = ax.bar(x, means, width=bar_w, color=colors,
+                      edgecolor='white', linewidth=0.8,
+                      yerr=stds, capsize=5,
+                      error_kw=dict(ecolor='#444444', elinewidth=1.2, capthick=1.2))
+
+        # 数值标注
+        for bar, mean_val in zip(bars, means):
+            if not np.isnan(mean_val):
+                ax.text(bar.get_x() + bar.get_width() / 2,
+                        bar.get_height() + (max(stds) if not np.isnan(max(stds)) else 0) + 0.3,
+                        f"{mean_val:.1f}",
+                        ha='center', va='bottom', fontsize=10, fontweight='bold')
+
+        # 各维度切割分虚线（不同颜色同色）
+        for xi, (cutoff, color) in enumerate(zip(cutoffs, colors)):
+            ax.hlines(cutoff,
+                      xi - bar_w / 2, xi + bar_w / 2,
+                      colors='red', linestyles='--', linewidth=1.4, alpha=0.7)
+
+        # 统一的切割分图例说明（只画一条代表性红虚线进图例）
+        ax.hlines([], 0, 0, colors='red', linestyles='--', linewidth=1.4,
+                  label='各维度临床切割分')
+        ax.legend(fontsize=8, loc='upper right')
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(dims, fontsize=11)
+        ax.set_ylabel("维度总分", fontsize=11)
+        ax.set_ylim(0, 30)
+        ax.set_title(f"CTQ-28  {row['model_name']}", fontsize=12, fontweight='bold', pad=8)
+        ax.yaxis.grid(True, linestyle='--', alpha=0.4)
+        ax.set_axisbelow(True)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+    # 隐藏多余子图
+    for i in range(n_models, len(axes)):
+        axes[i].set_visible(False)
+
+    fig.suptitle("CTQ-28 量表 — 6个模型各维度均值（均值 ± SD，红虚线为各维度临床切割分）",
+                 fontsize=14, fontweight='bold', y=1.05)
+
+    out_path = "CTQ_6模型柱状图.png"
+    fig.savefig(out_path, dpi=300, bbox_inches='tight')
+    print(f"\n✅ 图片已保存至: {out_path}")
+    plt.show()
+
+
+# ==========================================
+# 7. 主流程
+# ==========================================
+def main():
+    print("📡 正在从数据库获取 CTQ 数据并计分...")
+    df_scores = get_ctq_scores()
+
+    if df_scores.empty:
+        print("❌ 没有有效的 CTQ 数据，请检查数据库。")
+        return
+
+    print(f"\n✅ 有效记录数: {len(df_scores)} 条")
+    print(df_scores.groupby('model_name').size().rename('有效run数').to_string())
+
+    df_agg = aggregate(df_scores)
+
+    print("\n📊 各模型各维度均值：")
+    dims = ["情感虐待", "躯体虐待", "性虐待", "情感忽略", "躯体忽视"]
+    for _, row in df_agg.iterrows():
+        print(f"\n  {row['model_name']}")
+        for d in dims:
+            print(f"    {d}: 均值={row[f'{d}_mean']:.2f}, SD={row[f'{d}_std']:.2f}")
+
+    print("\n🎨 正在生成图表...")
+    plot_ctq(df_agg)
+
+
+if __name__ == "__main__":
+    main()
