@@ -6,8 +6,8 @@
 
 ## 1. 项目核心逻辑
 1. **人格模拟**：通过 `System Prompt` 为 LLM 设定特定的人生经历、性格特质和情绪倾向。
-2. **自动化测验**：系统遍历所有配置的模型和问卷，以 JSON 格式捕获 LLM 的选择结果及背后的“内心感受（ai_reasoning）”。
-3. **数据结构化**：结果持久化至 PostgreSQL，包含完整的对话历史和模型原始回复。
+2. **自动化测验**：系统遍历所有配置的模型 and 问卷，以 JSON 格式捕获 LLM 的选择结果及背后的“内心感受（ai_reasoning）”。
+3. **数据结构化**：结果持久化至 PostgreSQL，包含完整的对话历史 and 模型原始回复。
 4. **统计分析**：对量表进行自动计分、效度/诚实性检查，并生成模型间的相似度指标（MAE, Cosine）和统计路径分析（SEM）。
 
 ---
@@ -33,8 +33,8 @@
   - `calculate_similarity`: 计算不同模型在各维度得分上的 MAE 和余弦相似度。
 - **`visualize_results.py`**: **结果可视化**。
   - 调用分析逻辑并将结果绘制为美化后的 Seaborn 柱状图，保存至 `output/`。
-- **`visualize_2.py`** (位于根目录): **高级可视化脚本**。
-  - 提供了更专业、美学程度更高的图表排版，支持多维度堆叠对比和汇总图（`model_comparison_summary.png`）的生成。
+- **`tests/ctq_plot.py`**: **核心 CTQ 绘图工具**。
+  - 专门针对 **CTQ（儿童创伤问卷）** 生成多模型对比的簇状柱状图。它是分析不同模型在创伤感知差异上的核心诊断工具。
 - **`db.py`**: 数据库交互层。负责表结构初始化及 `ai_persona_runs` / `questionnaire_answers` 表的读写。
 - **`questionnaire_parser.py`**: 问卷解析器，将 Markdown 文本转换为结构化对象。
 - **`llm/client.py`**: 通用 LLM 客户端，封装了 OpenAI SDK，支持流式输出控制及 `<think>` 标签清理。
@@ -65,24 +65,24 @@ uv sync
    ```bash
    python src/persona_runner.py
    ```
-   该过程可能耗时较长（取决于题目数量和模型并发），请关注终端实时进度。
+   该过程可能耗时较长（取决于题目数量 and 模型并发），请关注终端实时进度。
 3. **数据分析与可视化**：
    ```bash
    # 查看统计分析报表（终端输出）
    python src/analyze_data.py
    
-   # 生成基础对比图表
+   # 生成对比图表
    python src/visualize_results.py
    
-   # 生成高级美化版及汇总对比图表（推荐）
-   python visualize_2.py
+   # 生成核心 CTQ 对比图
+   python tests/ctq_plot.py
    ```
    图表将存放在 `output/` 目录下。
 
 ---
 
 ## 4. 数据输出说明
-除了数据库存储和图片输出外，项目在分析过程中可能会生成以下文件：
+除了数据库存储 and 图片输出外，项目在分析过程中可能会生成以下文件：
 - `所有问卷最终得分表.xlsx`: 汇总所有模型在所有维度上的评分数据。
 - `CTQ详细得分表.xlsx`: 专门针对 CTQ 量表的各模型详细得分（含效度检查结果）。
 - `output/*.png`: 模型间各心理维度的对比可视化结果。
