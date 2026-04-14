@@ -1,3 +1,14 @@
+# Environments
+.env
+
+# IDE
+.idea/
+
+# Temp/Debug Scripts
+test_countpoint.py
+visualize_2.py
+debug_data.py
+
 # Python-generated files
 __pycache__/
 *.py[oc]

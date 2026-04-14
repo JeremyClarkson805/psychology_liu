@@ -1,15 +1,11 @@
-import psycopg2
-import pandas as pd
+import os
+import sys
+# 将 src 目录添加到路径中以便导入 db
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 
-DB_CONFIG = {
-    "dbname": "postgres",
-    "user": "postgres",
-    "password": "REMOVED_PASSWORD",
-    "host": "localhost",
-    "port": "5432"
-}
+from db import get_connection
 
-conn = psycopg2.connect(**DB_CONFIG)
+conn = get_connection()
 
 # 查1：所有模型名称和每个模型的run数量
 df_models = pd.read_sql("""

@@ -11,100 +11,18 @@ import re
 matplotlib.rcParams['font.family'] = ['Microsoft YaHei']
 matplotlib.rcParams['axes.unicode_minus'] = False
 
-# ==========================================
-# 1. 数据库配置
-# ==========================================
-DB_CONFIG = {
-    "dbname": "postgres",
-    "user": "postgres",
-    "password": "REMOVED_PASSWORD",
-    "host": "localhost",
-    "port": "5432"
-}
+import os
+import sys
+# 将 src 目录添加到路径中以便导入 db
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 
-# ==========================================
-# 2. 工具函数
-# ==========================================
-def get_numeric_value(text, mapping):
-    if pd.isna(text) or not str(text).strip():
-        return np.nan
-    text = str(text).strip()
-    if text in mapping:
-        return mapping[text]
-    num_match = re.search(r'(\d+)', text)
-    if num_match:
-        val = int(num_match.group(1))
-        if val in mapping.values():
-            return val
-    for key, val in mapping.items():
-        if key in text:
-            return val
-    return np.nan
-
-
-# ==========================================
-# 3. CTQ 计分
-# ==========================================
-CTQ_MAPPING = {
-    "从没": 1, "从不": 1, "没有": 1,
-    "偶尔": 2,
-    "有时": 3,
-    "经常": 4,
-    "总是": 5
-}
-
-# CTQ 各维度切割分（标准临床切割分）
-CTQ_CUTOFFS = {
-    "情感虐待": 9,
-    "躯体虐待": 8,
-    "性虐待":   6,
-    "情感忽略": 10,
-    "躯体忽视": 8,
-}
-
-def score_ctq_one_run(answers_dict):
-    """
-    answers_dict: {question_num(str): answer_content(str)}
-    返回各维度得分，无效问卷返回 None
-    """
-    q = {str(k): get_numeric_value(v, CTQ_MAPPING) for k, v in answers_dict.items()}
-
-    def get_v(n):
-        return q.get(str(n), np.nan)
-
-    def rev(n):
-        v = get_v(n)
-        return 6 - v if not np.isnan(v) else np.nan
-
-    def dim_sum(fwd, rvs=[]):
-        vals = [get_v(i) for i in fwd] + [rev(i) for i in rvs]
-        valid = [v for v in vals if not np.isnan(v)]
-        return sum(valid) if valid else np.nan
-
-    # 效度检查
-    if get_v(10) == 1 or get_v(16) in [4, 5] or get_v(22) in [4, 5]:
-        return None  # 无效问卷
-
-    ea = dim_sum([3, 8, 14, 18, 25])           # 情感虐待
-    pa = dim_sum([9, 11, 12, 15, 17])           # 躯体虐待
-    sa = dim_sum([20, 21, 23, 24, 27])          # 性虐待
-    en = dim_sum([], [5, 7, 13, 19, 28])        # 情感忽略（全反向）
-    pn = dim_sum([1, 4, 6], [2, 26])            # 躯体忽视
-
-    return {
-        "情感虐待": ea,
-        "躯体虐待": pa,
-        "性虐待":   sa,
-        "情感忽略": en,
-        "躯体忽视": pn,
-    }
-
+from db import get_connection
 
 # ==========================================
 # 4. 从数据库获取数据并计分
 # ==========================================
 def get_ctq_scores():
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = get_connection()
     df = pd.read_sql("""
         SELECT r.model_name, r.run_id, a.question_num, a.answer_content
         FROM questionnaire_answers a

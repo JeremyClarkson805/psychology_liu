@@ -1,16 +1,11 @@
-import psycopg2
-import json
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-DB_CONFIG = {
-    "dbname": "postgres",
-    "user": "postgres",
-    "password": "REMOVED_PASSWORD",
-    "host": "localhost",
-    "port": "5432"
-}
+from db import get_connection
 
 def verify_db():
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = get_connection()
     try:
         with conn.cursor() as cur:
             # Check runs

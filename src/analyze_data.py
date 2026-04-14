@@ -4,18 +4,15 @@ import pandas as pd
 import numpy as np
 import re
 
-# DB Configuration
-DB_CONFIG = {
-    "dbname": "postgres",
-    "user": "postgres",
-    "password": "REMOVED_PASSWORD",
-    "host": "localhost",
-    "port": "5432"
-}
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from db import get_connection
 
 def get_db_data():
     """从数据库获取答题原始数据"""
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = get_connection()
     try:
         # 获取所有答题明细
         query_ans = """
