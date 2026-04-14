@@ -14,7 +14,7 @@ THINKING_MODELS = {
     "qwen3.5-397b-a17b": {"enable_thinking": False},
 
     # Gemini thinking 系列：通过 thinking_config 关闭
-    # 注意：部分服务商可能不支持，报错时删掉这行
+
     "gemini-3.1-pro-preview-thinking": {"thinking_config": {"thinking_budget": 0}},
 }
 

@@ -62,7 +62,6 @@ uv run src/verify_db.py
    ```bash
    uv run tests/ctq_plot.py
    ```
-   生成的图表将存放在 `output/` 目录下。
 
 ---
 
