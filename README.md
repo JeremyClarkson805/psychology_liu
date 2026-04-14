@@ -62,17 +62,8 @@ uv run src/verify_db.py
    ```bash
    uv run tests/ctq_plot.py
    ```
+   ```bash
+   uv run tests/ctq_plot_separate.py
+   ```
 
----
 
-## 5. 扩展指南 (致接手者)
-- **增加模型**：在 `llm_config.py` 中添加模型名。若模型有特殊要求（如 Kimi 强制 temp=1），请在相应列表中注册。
-- **增加人格**：在 `persona_runner.py` 的 `PERSONAS` 列表中增加新的设定描述。
-- **JSON 解析**：若发现大量解析失败，可尝试在 `persona_runner.py` 中调整 `MAX_JSON_RETRIES` 或优化 Prompt。
-
----
-
-## 6. 依赖项
-- Python 3.12+ (使用 `uv` 管理)
-- PostgreSQL
-- 主要库：`psycopg2-binary`, `pandas`, `seaborn`, `openai`
