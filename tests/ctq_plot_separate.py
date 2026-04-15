@@ -5,22 +5,72 @@ import matplotlib.pyplot as plt
 import matplotlib
 import re
 
-# ==========================================
-# 0. 中文字体设置
-# ==========================================
 matplotlib.rcParams['font.family'] = ['Microsoft YaHei']
 matplotlib.rcParams['axes.unicode_minus'] = False
 
 import os
 import sys
-# 将 src 目录添加到路径中以便导入 db
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 
 from db import get_connection
 
-# ==========================================
-# 3. 获取数据并计分
-# ==========================================
+CTQ_MAPPING = {
+    "从没": 1, "从不": 1, "没有": 1,
+    "偶尔": 2,
+    "有时": 3,
+    "经常": 4,
+    "总是": 5
+}
+
+# CTQ 各维度切割分（标准临床切割分）
+CTQ_CUTOFFS = {
+    "情感虐待": 9,
+    "躯体虐待": 8,
+    "性虐待":   6,
+    "情感忽略": 10,
+    "躯体忽视": 8,
+}
+
+def get_numeric_value(text, mapping):
+    if pd.isna(text) or not str(text).strip():
+        return np.nan
+    text = str(text).strip()
+    if text in mapping:
+        return mapping[text]
+    num_match = re.search(r'(\d+)', text)
+    if num_match:
+        val = int(num_match.group(1))
+        if val in mapping.values():
+            return val
+    for key, val in mapping.items():
+        if key in text:
+            return val
+    return np.nan
+
+def score_ctq_one_run(answers_dict):
+    q = {str(k): get_numeric_value(v, CTQ_MAPPING) for k, v in answers_dict.items()}
+
+    def get_v(n):
+        return q.get(str(n), np.nan)
+    def rev(n):
+        v = get_v(n)
+        return 6 - v if not np.isnan(v) else np.nan
+    def dim_sum(fwd, rvs=[]):
+        vals = [get_v(i) for i in fwd] + [rev(i) for i in rvs]
+        valid = [v for v in vals if not np.isnan(v)]
+        return sum(valid) if valid else np.nan
+
+    if get_v(10) == 1 or get_v(16) in [4, 5] or get_v(22) in [4, 5]:
+        return None
+
+    return {
+        "情感虐待": dim_sum([3, 8, 14, 18, 25]),
+        "躯体虐待": dim_sum([9, 11, 12, 15, 17]),
+        "性虐待":   dim_sum([20, 21, 23, 24, 27]),
+        "情感忽略": dim_sum([], [5, 7, 13, 19, 28]),
+        "躯体忽视": dim_sum([1, 4, 6], [2, 26]),
+    }
+
 def get_ctq_scores():
     conn = get_connection()
     df = pd.read_sql("""
@@ -45,10 +95,6 @@ def get_ctq_scores():
 
     return pd.DataFrame(records)
 
-
-# ==========================================
-# 4. 单模型画图并保存
-# ==========================================
 def plot_single_model(model_name, grp):
     dims    = ["情感虐待", "躯体虐待", "性虐待", "情感忽略", "躯体忽视"]
     cutoffs = [CTQ_CUTOFFS[d] for d in dims]
@@ -105,10 +151,6 @@ def plot_single_model(model_name, grp):
     plt.close(fig)
     print(f"  ✅ 已保存: {out_path}")
 
-
-# ==========================================
-# 5. 主流程
-# ==========================================
 def main():
     print("📡 正在从数据库获取 CTQ 数据并计分...")
     df_scores = get_ctq_scores()
@@ -125,7 +167,6 @@ def main():
         plot_single_model(model_name, grp)
 
     print("\n🎉 全部完成！共生成 6 张图。")
-
 
 if __name__ == "__main__":
     main()
