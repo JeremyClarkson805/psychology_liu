@@ -5,6 +5,7 @@ from typing import List, Dict
 
 import sys
 import os
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from llm.client import LLMClient
@@ -12,7 +13,7 @@ from config.llm_config import LLMConfig
 from db import create_run, insert_answer
 from questionnaire_parser import load_all_questionnaires
 
-LOCK_FILE = "e:/psychology_liu/runner.lock"
+LOCK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runner.lock")
 
 # ─────────────────────────────────────────────
 #  日志工具
@@ -148,7 +149,7 @@ def ask_llm_single(
                 history=temp_history,
                 model_name=model_name,
             )
-            log(f"  ← 收到响应，耗时 {time.time()-t_send:.2f}s", "OK")
+            log(f"  ← 收到响应，耗时 {time.time() - t_send:.2f}s", "OK")
 
             last_reply = results.get(model_name, "")
             if not last_reply or last_reply.startswith("Error:"):
@@ -247,7 +248,9 @@ def main():
 
                         t_q = time.time()
                         ans = ask_llm_single(
-                            client, q, q_title,
+                            client,
+                            q,
+                            q_title,
                             conversation_history,
                             persona_desc,
                             model_name,
@@ -260,16 +263,18 @@ def main():
                         t_db = time.time()
                         try:
                             insert_answer(
-                                run_id, q_title, str(q_num),
+                                run_id,
+                                q_title,
+                                str(q_num),
                                 q["question_text"],
                                 ans.get("answer_content", ""),
                                 ans.get("ai_reasoning", ""),
                             )
-                            log(f"  DB 写入 {time.time()-t_db:.3f}s", "OK")
+                            log(f"  DB 写入 {time.time() - t_db:.3f}s", "OK")
                         except Exception as e:
                             log(f"  DB 写入失败: {e}", "ERROR")
 
-                        log(f"  本题总耗时: {time.time()-t_q:.2f}s", "TIME")
+                        log(f"  本题总耗时: {time.time() - t_q:.2f}s", "TIME")
                         # time.sleep(0.5)
 
                     qs_cost = time.time() - qs_start
@@ -282,7 +287,7 @@ def main():
                     "OK"
                 )
 
-        log(f"\n全部完成！总运行时间 {time.time()-_run_start:.1f}s", "OK")
+        log(f"\n全部完成！总运行时间 {time.time() - _run_start:.1f}s", "OK")
 
     finally:
         if os.path.exists(LOCK_FILE):
