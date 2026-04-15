@@ -18,12 +18,12 @@ def _extract_options_from_preamble(lines: List[str]) -> str:
     options = []
     for line in lines:
         # 匹配 "数字 选项文字" 或 "数字. 选项文字"，选项文字后可跟说明
-        m = re.match(r'^\s*(\d+)\s*[\.、]?\s*([\u4e00-\u9fa5a-zA-Z]+)', line.strip())
+        m = re.match(r"^\s*(\d+)\s*[\.、]?\s*([\u4e00-\u9fa5a-zA-Z]+)", line.strip())
         if m:
             options.append(m.group(2))
         # 遇到正式题目开始（"1. 题目内容"这种较长的行）就停止
         # 用字数区分：说明里每行选项文字短，题目文字长
-        if options and len(line.strip()) > 20 and re.match(r'^\s*1\s*[\.、、]', line):
+        if options and len(line.strip()) > 20 and re.match(r"^\s*1\s*[\.、、]", line):
             break
     return ", ".join(options) if options else ""
 
@@ -31,30 +31,32 @@ def _extract_options_from_preamble(lines: List[str]) -> str:
 def _parse_table(lines: List[str]) -> tuple:
     """解析表格格式，返回 (options_str, questions_list)"""
     questions = []
-    table_lines = [l.strip() for l in lines if l.strip().startswith('|')]
+    table_lines = [l.strip() for l in lines if l.strip().startswith("|")]
     if len(table_lines) < 3:
         return "", []
 
-    header = [col.strip() for col in table_lines[0].split('|') if col.strip()]
+    header = [col.strip() for col in table_lines[0].split("|") if col.strip()]
     options = ", ".join(header[1:])
 
     for line in table_lines[2:]:
-        cols = [col.strip() for col in line.split('|') if col.strip()]
+        cols = [col.strip() for col in line.split("|") if col.strip()]
         if not cols:
             continue
         q_full = cols[0]
-        m = re.match(r'^(\d+)[\.\s、]*(.*)$', q_full)
+        m = re.match(r"^(\d+)[\.\s、]*(.*)$", q_full)
         if m:
             q_num, q_text = m.group(1), m.group(2)
         else:
             q_num = str(len(questions) + 1)
             q_text = q_full
 
-        questions.append({
-            "question_num": q_num,
-            "question_text": q_text,
-            "options": options,
-        })
+        questions.append(
+            {
+                "question_num": q_num,
+                "question_text": q_text,
+                "options": options,
+            }
+        )
     return options, questions
 
 
@@ -66,7 +68,7 @@ def _parse_numbered_list(lines: List[str], options: str) -> List[Dict]:
     """
     questions = []
     for line in lines:
-        m = re.match(r'^\s*(\d+)\s*[\.、。]\s*(.+)$', line.strip())
+        m = re.match(r"^\s*(\d+)\s*[\.、。]\s*(.+)$", line.strip())
         if not m:
             continue
         q_num = m.group(1)
@@ -74,11 +76,13 @@ def _parse_numbered_list(lines: List[str], options: str) -> List[Dict]:
         # 跳过过短的行（可能是说明里的选项编号，如 "1 没有"）
         if len(q_text) < 4:
             continue
-        questions.append({
-            "question_num": q_num,
-            "question_text": q_text,
-            "options": options,
-        })
+        questions.append(
+            {
+                "question_num": q_num,
+                "question_text": q_text,
+                "options": options,
+            }
+        )
     return questions
 
 
@@ -115,17 +119,21 @@ def parse_markdown_with_title(file_path: str) -> Dict[str, Any]:
             base_num = q["question_num"]
             base_text = q["question_text"]
             # 过去
-            expanded.append({
-                "question_num": f"{base_num}a",
-                "question_text": f"{base_text} [过去（从出生到现在）]",
-                "options": "没有 / 有X次（X替换为你估计的具体次数，例如：有3次）",
-            })
+            expanded.append(
+                {
+                    "question_num": f"{base_num}a",
+                    "question_text": f"{base_text} [过去（从出生到现在）]",
+                    "options": "没有 / 有X次（X替换为你估计的具体次数，例如：有3次）",
+                }
+            )
             # 最近1年
-            expanded.append({
-                "question_num": f"{base_num}b",
-                "question_text": f"{base_text} [最近1年]",
-                "options": "没有 / 有X次（X替换为你估计的具体次数，例如：有3次）",
-            })
+            expanded.append(
+                {
+                    "question_num": f"{base_num}b",
+                    "question_text": f"{base_text} [最近1年]",
+                    "options": "没有 / 有X次（X替换为你估计的具体次数，例如：有3次）",
+                }
+            )
         questions = expanded
 
     if not questions:
@@ -149,7 +157,8 @@ def load_all_questionnaires(base_dir: str) -> List[Dict[str, Any]]:
 
 
 if __name__ == "__main__":
-    qs = load_all_questionnaires("e:/psychology_liu")
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    qs = load_all_questionnaires(project_root)
     for q_info in qs:
         title = q_info["title"]
         questions = q_info["questions"]
