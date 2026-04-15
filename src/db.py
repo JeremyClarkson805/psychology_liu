@@ -29,7 +29,8 @@ def init_db():
                     run_id SERIAL PRIMARY KEY,
                     persona_prompt TEXT NOT NULL,
                     model_name VARCHAR(100) NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    temp double precision
                 );
             """)
             
